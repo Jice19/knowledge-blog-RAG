@@ -221,3 +221,25 @@
 - **根因 1**：`target/classes` 残留旧 class（新旧代码混杂），`mvn spring-boot:run` 未 clean → 运行的并非最新代码。**必须用 `mvn clean spring-boot:run`**
 - **根因 2**：JDK HttpClient 在本机对 PUT 行为异常 → 改用 `SimpleClientHttpRequestFactory`（HttpURLConnection）
 - **经验**：排查时让请求"响亮失败"（打印原始响应 + 强制验证），不要静默吞错；改代码后务必 clean 重建
+
+---
+
+## 步骤 8 · RAG 问答（2.4）：检索 + LLM 生成
+
+### 8.1 需求（按点）
+
+1. 把检索到的内容交给大模型生成答案，形成 **RAG 闭环**
+2. 返回「**答案 + 引用来源**」（哪篇文章的哪个章节）
+
+### 8.2 实现方案（按点）
+
+1. `ChatService`：调 Ollama `/api/chat`（`qwen3:1.7b`，system 定角色 + user 给资料和问题）
+2. `RagService.ask`：检索 Top N → 组装 prompt（每条资料标注《文章》- 章节）→ 生成 → 返回 `AskResult{answer, references}`
+3. `RagController`：新增 `GET /api/rag/ask?q=xxx&topK=3`
+4. `RestClientConfig`：读超时加到 180s（本机 CPU 生成慢）
+
+### 8.3 完成情况
+
+- ✅ 后端 clean 构建 BUILD SUCCESS
+- ✅ Python 端到端验证：问题 → 检索 3 chunk → qwen3:1.7b 生成高质量答案（准确涵盖 Java 17 / Jakarta EE / Initializr，无编造）
+- ✅ `GET /api/rag/ask` 接口就绪

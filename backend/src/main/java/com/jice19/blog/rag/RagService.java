@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RAG 核心服务：文章入库（切片→向量化→存 Qdrant）与检索。
+ * RAG 核心服务：入库、检索、问答（检索增强生成）。
  */
 @Service
 @RequiredArgsConstructor
@@ -22,6 +22,7 @@ public class RagService {
     private final ChunkService chunkService;
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
+    private final ChatService chatService;
     private final RagProperties props;
     private final ArticleMapper articleMapper;
 
@@ -57,5 +58,38 @@ public class RagService {
     public List<JsonNode> search(String query, int topK) {
         float[] vec = embeddingService.embed(query);
         return vectorStoreService.search(props.getCollection(), vec, topK);
+    }
+
+    /**
+     * 问答（RAG 闭环）：
+     * 问题 → 检索 Top N chunk → 组装 prompt → LLM 生成答案 → 返回「答案 + 引用来源」
+     */
+    public AskResult ask(String question, int topK) {
+        List<JsonNode> hits = search(question, topK);
+
+        StringBuilder context = new StringBuilder();
+        List<AskResult.Reference> refs = new ArrayList<>();
+        int i = 1;
+        for (JsonNode hit : hits) {
+            JsonNode payload = hit.path("payload");
+            String text = payload.path("text").asText();
+            String title = payload.path("articleTitle").asText();
+            String heading = payload.path("heading").asText();
+            long articleId = payload.path("articleId").asLong();
+            double score = hit.path("score").asDouble();
+
+            context.append("【资料").append(i).append("】（来源：《").append(title)
+                    .append("》- ").append(heading.isBlank() ? "全文" : "章节：" + heading)
+                    .append("）\n").append(text).append("\n\n");
+            refs.add(new AskResult.Reference(articleId, title, heading, score));
+            i++;
+        }
+
+        String system = "你是技术知识库问答助手。请只根据提供的资料回答问题，不要编造资料中没有的内容；"
+                + "如果资料不足以回答，请如实说明。用中文回答，简洁清晰。";
+        String user = "以下是从知识库检索到的相关资料：\n\n" + context + "问题：" + question;
+
+        String answer = chatService.chat(system, user);
+        return new AskResult(answer, refs);
     }
 }

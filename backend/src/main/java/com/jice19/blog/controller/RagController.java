@@ -2,6 +2,7 @@ package com.jice19.blog.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jice19.blog.common.Result;
+import com.jice19.blog.rag.AskResult;
 import com.jice19.blog.rag.RagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,5 +31,11 @@ public class RagController {
     @GetMapping("/api/rag/search")
     public Result<List<JsonNode>> search(@RequestParam String q, @RequestParam(defaultValue = "3") int topK) {
         return Result.success(ragService.search(q, topK));
+    }
+
+    /** RAG 问答：检索 + LLM 生成（返回答案 + 引用来源） */
+    @GetMapping("/api/rag/ask")
+    public Result<AskResult> ask(@RequestParam String q, @RequestParam(defaultValue = "3") int topK) {
+        return Result.success(ragService.ask(q, topK));
     }
 }

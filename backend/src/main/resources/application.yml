@@ -53,3 +53,5 @@ rag:
   chat-model: qwen3:0.6b
   collection: blog_chunks
   vector-size: 1024
+  chunk-max-chars: 1000
+  chunk-overlap-chars: 100

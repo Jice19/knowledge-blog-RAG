@@ -29,4 +29,10 @@ public class RagProperties {
 
     /** 向量维度 */
     private int vectorSize = 1024;
+
+    /** 标题切片超过该字符数时按句子二次切分 */
+    private int chunkMaxChars = 1000;
+
+    /** 二次切分相邻片段的重叠字符数 */
+    private int chunkOverlapChars = 100;
 }

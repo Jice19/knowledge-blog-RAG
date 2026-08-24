@@ -83,8 +83,6 @@ export default function LoginPage() {
             {loading ? '登录中…' : '登 录'}
           </button>
         </form>
-
-        <p className="mt-4 text-center text-xs text-slate-400">默认管理员账号：admin / admin123</p>
       </div>
     </div>
   )

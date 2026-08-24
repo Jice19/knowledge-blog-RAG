@@ -1,19 +1,41 @@
-import { useState } from 'react'
-import { useData } from '../../store/DataContext'
+import { useCallback, useEffect, useState } from 'react'
+import { createCategory, deleteCategory, listCategories, type Category } from '../../api/category'
 
 export default function CategoryManagePage() {
-  const { categories, addCategory, deleteCategory } = useData()
+  const [categories, setCategories] = useState<Category[]>([])
   const [name, setName] = useState('')
+  const [error, setError] = useState('')
 
-  const add = () => {
+  const fetchData = useCallback(() => {
+    listCategories()
+      .then(setCategories)
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const add = async () => {
     if (!name.trim()) return
-    addCategory({
-      id: Date.now(),
-      name: name.trim(),
-      slug: `cat-${Date.now()}`,
-      sort: categories.length + 1,
-    })
-    setName('')
+    setError('')
+    try {
+      await createCategory({ name: name.trim(), slug: `cat-${Date.now()}`, sort: categories.length + 1 })
+      setName('')
+      fetchData()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '添加失败')
+    }
+  }
+
+  const remove = async (id: number, name: string) => {
+    if (!window.confirm(`确定删除分类「${name}」吗？`)) return
+    try {
+      await deleteCategory(id)
+      fetchData()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败')
+    }
   }
 
   return (
@@ -36,6 +58,8 @@ export default function CategoryManagePage() {
         </button>
       </div>
 
+      {error && <div className="mt-3 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-600">{error}</div>}
+
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((c) => (
           <div
@@ -46,11 +70,12 @@ export default function CategoryManagePage() {
               <div className="font-medium text-slate-800">{c.name}</div>
               <div className="mt-0.5 text-xs text-slate-400">/{c.slug}</div>
             </div>
-            <button onClick={() => deleteCategory(c.id)} className="text-sm text-rose-500 transition hover:text-rose-600">
+            <button onClick={() => remove(c.id, c.name)} className="text-sm text-rose-500 transition hover:text-rose-600">
               删除
             </button>
           </div>
         ))}
+        {categories.length === 0 && <div className="col-span-full py-10 text-center text-sm text-slate-400">暂无分类</div>}
       </div>
     </div>
   )

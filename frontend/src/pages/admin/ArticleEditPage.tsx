@@ -1,47 +1,84 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useData } from '../../store/DataContext'
+import { listCategories, type Category } from '../../api/category'
+import { listTags, type Tag } from '../../api/tag'
+import {
+  createArticle,
+  getAdminArticle,
+  updateArticle,
+  type ArticleDTO,
+} from '../../api/article'
 import Markdown from '../../components/Markdown'
-import { mockUser } from '../../data/mock'
-import type { Article, ArticleStatus } from '../../types'
 
 export default function ArticleEditPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { articles, categories, tags, addArticle, updateArticle } = useData()
-  const editing = id ? articles.find((a) => a.id === Number(id)) : undefined
+  const editingId = id ? Number(id) : null
 
-  const [title, setTitle] = useState(editing?.title ?? '')
-  const [summary, setSummary] = useState(editing?.summary ?? '')
-  const [content, setContent] = useState(editing?.content ?? '')
-  const [cover, setCover] = useState(editing?.cover ?? '')
-  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? categories[0]?.id ?? 0)
-  const [tagIds, setTagIds] = useState<number[]>(editing?.tags.map((t) => t.id) ?? [])
-  const [status, setStatus] = useState<ArticleStatus>(editing?.status ?? 0)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
+
+  const [title, setTitle] = useState('')
+  const [summary, setSummary] = useState('')
+  const [content, setContent] = useState('')
+  const [cover, setCover] = useState('')
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [tagIds, setTagIds] = useState<number[]>([])
+  const [status, setStatus] = useState(0)
   const [preview, setPreview] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    listCategories().then(setCategories).catch(() => {})
+    listTags().then(setTags).catch(() => {})
+    if (editingId) {
+      getAdminArticle(editingId)
+        .then((a) => {
+          setTitle(a.title)
+          setSummary(a.summary ?? '')
+          setContent(a.content)
+          setCover(a.cover ?? '')
+          setCategoryId(a.categoryId)
+          setTagIds(a.tags.map((t) => t.id))
+          setStatus(a.status)
+        })
+        .catch(() => setError('文章加载失败'))
+    }
+  }, [editingId])
 
   const toggleTag = (tid: number) =>
     setTagIds((prev) => (prev.includes(tid) ? prev.filter((x) => x !== tid) : [...prev, tid]))
 
-  const save = () => {
-    if (!title.trim()) return
-    const article: Article = {
-      id: editing?.id ?? Date.now(),
+  const save = async () => {
+    if (!title.trim()) {
+      setError('标题不能为空')
+      return
+    }
+    if (!content.trim()) {
+      setError('内容不能为空')
+      return
+    }
+    setSaving(true)
+    setError('')
+    const payload: ArticleDTO = {
       title: title.trim(),
       summary,
       content,
       cover,
       categoryId,
-      category: categories.find((c) => c.id === categoryId),
-      tags: tags.filter((t) => tagIds.includes(t.id)),
-      author: mockUser,
+      tagIds,
       status,
-      viewCount: editing?.viewCount ?? 0,
-      createTime: editing?.createTime ?? new Date().toISOString().slice(0, 10),
     }
-    if (editing) updateArticle(article)
-    else addArticle(article)
-    navigate('/admin/articles')
+    try {
+      if (editingId) await updateArticle(editingId, payload)
+      else await createArticle(payload)
+      navigate('/admin/articles')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const inputCls =
@@ -50,7 +87,7 @@ export default function ArticleEditPage() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">{editing ? '编辑文章' : '新建文章'}</h2>
+        <h2 className="text-lg font-semibold text-slate-800">{editingId ? '编辑文章' : '新建文章'}</h2>
         <div className="flex gap-2">
           <button
             onClick={() => navigate('/admin/articles')}
@@ -60,12 +97,15 @@ export default function ArticleEditPage() {
           </button>
           <button
             onClick={save}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
           >
-            保存
+            {saving ? '保存中…' : '保存'}
           </button>
         </div>
       </div>
+
+      {error && <div className="mt-3 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-600">{error}</div>}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         {/* 元信息表单 */}
@@ -77,7 +117,12 @@ export default function ArticleEditPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-slate-600">分类</label>
-              <select value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))} className={inputCls}>
+              <select
+                value={categoryId ?? ''}
+                onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+                className={inputCls}
+              >
+                <option value="">未分类</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

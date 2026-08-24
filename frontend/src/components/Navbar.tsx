@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useData } from '../store/DataContext'
+import { listCategories, type Category } from '../api/category'
 import { logout as apiLogout } from '../api/auth'
 
 interface StoredUser {
@@ -10,11 +11,16 @@ interface StoredUser {
 }
 
 export default function Navbar() {
-  const { categories } = useData()
+  const [categories, setCategories] = useState<Category[]>([])
   const location = useLocation()
   const navigate = useNavigate()
 
-  // location 变化时触发重渲染，从而刷新登录态
+  useEffect(() => {
+    listCategories()
+      .then(setCategories)
+      .catch(() => {})
+  }, [])
+
   const token = localStorage.getItem('akb_token')
   let user: StoredUser | null = null
   try {
@@ -61,14 +67,6 @@ export default function Navbar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <label className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-400 sm:flex">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" strokeLinecap="round" />
-            </svg>
-            <input placeholder="搜索文章…" className="w-36 bg-transparent outline-none placeholder:text-slate-400" />
-          </label>
-
           {token && user ? (
             user.role === 'ADMIN' ? (
               <div className="flex items-center gap-2">

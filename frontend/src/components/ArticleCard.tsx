@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import type { Article } from '../types'
+import type { ArticleVO } from '../api/article'
 import { coverGradient } from '../utils/cover'
 import StatusBadge from './StatusBadge'
 
-export default function ArticleCard({ article }: { article: Article }) {
-  const slug = article.category?.slug
+export default function ArticleCard({ article }: { article: ArticleVO }) {
+  const slug = article.categorySlug ?? undefined
   return (
     <Link
       to={`/article/${article.id}`}
@@ -13,20 +13,16 @@ export default function ArticleCard({ article }: { article: Article }) {
       {article.cover ? (
         <img src={article.cover} alt={article.title} className="h-44 w-full object-cover" />
       ) : (
-        <div
-          className={`flex h-44 w-full items-center justify-center bg-gradient-to-br ${coverGradient(slug)}`}
-        >
-          <span className="text-5xl font-bold text-white/90">
-            {article.category?.name?.[0] ?? '文'}
-          </span>
+        <div className={`flex h-44 w-full items-center justify-center bg-gradient-to-br ${coverGradient(slug)}`}>
+          <span className="text-5xl font-bold text-white/90">{article.categoryName?.[0] ?? '文'}</span>
         </div>
       )}
 
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-center gap-2 text-xs">
-          {article.category && (
+          {article.categoryName && (
             <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 font-medium text-indigo-600">
-              {article.category.name}
+              {article.categoryName}
             </span>
           )}
           {article.status === 0 && <StatusBadge status={article.status} />}
@@ -48,12 +44,12 @@ export default function ArticleCard({ article }: { article: Article }) {
         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
           <span className="flex items-center gap-1.5">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-600">
-              {article.author.nickname[0]}
+              {article.authorName?.[0] ?? '?'}
             </span>
-            {article.author.nickname}
+            {article.authorName}
           </span>
           <span className="flex items-center gap-3">
-            <span>{article.createTime}</span>
+            <span>{article.createTime?.slice(0, 10)}</span>
             <span className="flex items-center gap-1">
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />

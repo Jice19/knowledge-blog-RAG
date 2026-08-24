@@ -24,7 +24,6 @@ export default function ArticleEditPage() {
   const [cover, setCover] = useState('')
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [tagIds, setTagIds] = useState<number[]>([])
-  const [status, setStatus] = useState(0)
   const [preview, setPreview] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -41,7 +40,6 @@ export default function ArticleEditPage() {
           setCover(a.cover ?? '')
           setCategoryId(a.categoryId)
           setTagIds(a.tags.map((t) => t.id))
-          setStatus(a.status)
         })
         .catch(() => setError('文章加载失败'))
     }
@@ -50,7 +48,8 @@ export default function ArticleEditPage() {
   const toggleTag = (tid: number) =>
     setTagIds((prev) => (prev.includes(tid) ? prev.filter((x) => x !== tid) : [...prev, tid]))
 
-  const save = async () => {
+  /** status: 0 存草稿 / 1 发布 */
+  const save = async (status: number) => {
     if (!title.trim()) {
       setError('标题不能为空')
       return
@@ -96,11 +95,18 @@ export default function ArticleEditPage() {
             取消
           </button>
           <button
-            onClick={save}
+            onClick={() => save(0)}
             disabled={saving}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
           >
-            {saving ? '保存中…' : '保存'}
+            存草稿
+          </button>
+          <button
+            onClick={() => save(1)}
+            disabled={saving}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+          >
+            发布
           </button>
         </div>
       </div>
@@ -167,29 +173,6 @@ export default function ArticleEditPage() {
                 className={inputCls}
                 placeholder="留空则使用分类渐变占位"
               />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-600">状态</label>
-              <div className="mt-1.5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStatus(0)}
-                  className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-                    status === 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  草稿
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus(1)}
-                  className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-                    status === 1 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  发布
-                </button>
-              </div>
             </div>
           </div>
         </div>

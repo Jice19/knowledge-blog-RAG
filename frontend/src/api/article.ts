@@ -50,6 +50,11 @@ export function getArticle(id: number) {
   return http.get(`/articles/${id}`) as Promise<ArticleVO>
 }
 
+/** 前台：热门文章 Top N */
+export function hotArticles(limit = 5) {
+  return http.get('/articles/hot', { params: { limit } }) as Promise<ArticleVO[]>
+}
+
 /** 后台：分页查全部文章 */
 export function adminPageArticles(params: { page: number; size: number; status?: number }) {
   return http.get('/admin/articles', { params }) as Promise<PageResult<ArticleVO>>

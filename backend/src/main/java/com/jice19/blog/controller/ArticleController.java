@@ -16,8 +16,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
- * 文章：公开列表/详情 + 管理端增删改查
+ * 文章：公开列表/详情/热门 + 管理端增删改查
  */
 @RestController
 @RequiredArgsConstructor
@@ -34,7 +36,13 @@ public class ArticleController {
         return Result.success(articleService.pagePublished(page, size, categoryId));
     }
 
-    /** 公开：文章详情（浏览量自增） */
+    /** 公开：热门文章 Top N */
+    @GetMapping("/api/articles/hot")
+    public Result<List<ArticleVO>> hot(@RequestParam(defaultValue = "5") int limit) {
+        return Result.success(articleService.hotArticles(limit));
+    }
+
+    /** 公开：文章详情（浏览量自增 + 热点计数） */
     @GetMapping("/api/articles/{id}")
     public Result<ArticleVO> detail(@PathVariable Long id) {
         return Result.success(articleService.getPublishedDetail(id));

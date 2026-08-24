@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react'
-import { pageArticles, type ArticleVO } from '../../api/article'
+import { Link } from 'react-router-dom'
+import { hotArticles, pageArticles, type ArticleVO } from '../../api/article'
 import { listCategories, type Category } from '../../api/category'
 import ArticleCard from '../../components/ArticleCard'
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [articles, setArticles] = useState<ArticleVO[]>([])
+  const [hotList, setHotList] = useState<ArticleVO[]>([])
   const [activeId, setActiveId] = useState<number | 'all'>('all')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     listCategories()
       .then(setCategories)
+      .catch(() => {})
+    hotArticles(5)
+      .then(setHotList)
       .catch(() => {})
   }, [])
 
@@ -34,13 +39,41 @@ export default function HomePage() {
     <div>
       {/* Hero */}
       <section className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 text-white">
-        <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4 py-14 text-center sm:px-6">
           <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">AI 智识博客</h1>
           <p className="mx-auto mt-4 max-w-2xl text-indigo-100 sm:text-lg">
             沉淀技术文章 · 用 RAG 让知识可被检索、可被问答
           </p>
         </div>
       </section>
+
+      {/* 热门文章 */}
+      {hotList.length > 0 && (
+        <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">🔥 热门文章</h2>
+            <ul className="mt-3 divide-y divide-slate-100">
+              {hotList.map((a, i) => (
+                <li key={a.id}>
+                  <Link to={`/article/${a.id}`} className="group flex items-center gap-4 py-3">
+                    <span
+                      className={`w-6 shrink-0 text-center text-lg font-bold ${
+                        i < 3 ? 'text-orange-500' : 'text-slate-300'
+                      }`}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 truncate text-sm text-slate-700 transition group-hover:text-indigo-600">
+                      {a.title}
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-400">{a.viewCount} 阅读</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* 分类筛选 + 文章网格 */}
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">

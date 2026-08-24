@@ -3,6 +3,7 @@ package com.jice19.blog.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jice19.blog.common.PageResult;
 import com.jice19.blog.common.ResultCode;
 import com.jice19.blog.common.exception.BusinessException;
@@ -22,6 +23,7 @@ import com.jice19.blog.service.ArticleService;
 import com.jice19.blog.vo.ArticleVO;
 import com.jice19.blog.vo.TagVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,21 +32,35 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * 文章服务。
- * 说明：列表查询使用「批量查询 + 内存组装」，避免 N+1（每篇文章单独查分类/标签/作者）。
+ * 说明：
+ * - 列表查询使用「批量查询 + 内存组装」，避免 N+1。
+ * - 热点判定：Redis ZSet 记录访问次数（每次详情访问 ZINCRBY）。
+ * - 热点文章详情缓存：Cache-Aside，TTL 30 分钟。
  */
 @Service
 @RequiredArgsConstructor
 public class ArticleServiceImpl implements ArticleService {
+
+    /** 热点计数 ZSet 的 key */
+    private static final String HOT_KEY = "article:hot";
+    /** 详情缓存 key 前缀 */
+    private static final String DETAIL_CACHE_PREFIX = "cache:article:detail:";
+    /** 详情缓存 TTL（分钟） */
+    private static final long DETAIL_TTL_MINUTES = 30;
 
     private final ArticleMapper articleMapper;
     private final ArticleTagMapper articleTagMapper;
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final UserMapper userMapper;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     public PageResult<ArticleVO> pagePublished(long page, long size, Long categoryId) {
@@ -74,6 +90,21 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public ArticleVO getPublishedDetail(Long id) {
+        // 1. 热点计数（每次访问都记，Redis 很轻）
+        redisTemplate.opsForZSet().incrementScore(HOT_KEY, String.valueOf(id), 1);
+
+        // 2. 先查缓存（命中则不查库）
+        String cacheKey = DETAIL_CACHE_PREFIX + id;
+        String cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            try {
+                return objectMapper.readValue(cached, ArticleVO.class);
+            } catch (Exception ignored) {
+                // 反序列化失败则回源
+            }
+        }
+
+        // 3. 回源查库
         Article a = articleMapper.selectById(id);
         if (a == null || a.getStatus() != 1) {
             throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "文章不存在");
@@ -85,6 +116,14 @@ public class ArticleServiceImpl implements ArticleService {
         a.setViewCount(a.getViewCount() + 1);
         ArticleVO vo = batchToVO(List.of(a)).get(0);
         vo.setContent(a.getContent());
+
+        // 4. 写缓存
+        try {
+            redisTemplate.opsForValue().set(cacheKey,
+                    objectMapper.writeValueAsString(vo), DETAIL_TTL_MINUTES, TimeUnit.MINUTES);
+        } catch (Exception ignored) {
+            // 缓存写失败不影响主流程
+        }
         return vo;
     }
 
@@ -97,6 +136,27 @@ public class ArticleServiceImpl implements ArticleService {
         ArticleVO vo = batchToVO(List.of(a)).get(0);
         vo.setContent(a.getContent());
         return vo;
+    }
+
+    @Override
+    public List<ArticleVO> hotArticles(int limit) {
+        int end = Math.max(0, limit - 1);
+        Set<String> hotIds = redisTemplate.opsForZSet().reverseRange(HOT_KEY, 0, end);
+        List<Article> articles;
+        if (hotIds == null || hotIds.isEmpty()) {
+            // 尚无访问数据时，回退为「浏览量最高」的文章
+            articles = articleMapper.selectList(new LambdaQueryWrapper<Article>()
+                            .eq(Article::getStatus, 1)
+                            .orderByDesc(Article::getViewCount)
+                            .orderByDesc(Article::getId))
+                    .stream().limit(limit).toList();
+        } else {
+            List<Long> ids = hotIds.stream().map(Long::valueOf).toList();
+            Map<Long, Article> byId = articleMapper.selectBatchIds(ids).stream()
+                    .collect(Collectors.toMap(Article::getId, a -> a));
+            articles = ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+        }
+        return batchToVO(articles);
     }
 
     @Override
@@ -131,6 +191,7 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.updateById(a);
         articleTagMapper.delete(new LambdaQueryWrapper<ArticleTag>().eq(ArticleTag::getArticleId, id));
         saveTags(id, dto.getTagIds());
+        evictDetailCache(id);
     }
 
     @Override
@@ -138,6 +199,8 @@ public class ArticleServiceImpl implements ArticleService {
     public void delete(Long id) {
         articleMapper.deleteById(id);
         articleTagMapper.delete(new LambdaQueryWrapper<ArticleTag>().eq(ArticleTag::getArticleId, id));
+        evictDetailCache(id);
+        redisTemplate.opsForZSet().remove(HOT_KEY, String.valueOf(id));
     }
 
     private void saveTags(Long articleId, List<Long> tagIds) {
@@ -150,6 +213,10 @@ public class ArticleServiceImpl implements ArticleService {
             at.setTagId(tagId);
             articleTagMapper.insert(at);
         }
+    }
+
+    private void evictDetailCache(Long articleId) {
+        redisTemplate.delete(DETAIL_CACHE_PREFIX + articleId);
     }
 
     /**

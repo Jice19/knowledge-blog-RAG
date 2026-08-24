@@ -28,6 +28,8 @@ public class ChatService {
         Map<String, Object> body = Map.of(
                 "model", props.getChatModel(),
                 "stream", false,
+                // 保持模型加载 30 分钟，避免空闲被卸载后重载（重载要 1~2 分钟）
+                "keep_alive", "30m",
                 "messages", List.of(
                         Map.of("role", "system", "content", system),
                         Map.of("role", "user", "content", user)

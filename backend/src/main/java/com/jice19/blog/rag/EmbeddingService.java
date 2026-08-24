@@ -27,7 +27,8 @@ public class EmbeddingService {
     public float[] embed(String text) {
         Map<String, Object> body = Map.of(
                 "model", props.getEmbeddingModel(),
-                "input", text);
+                "input", text,
+                "keep_alive", "30m");
         JsonNode resp = client.post()
                 .uri("/api/embed")
                 .body(body)

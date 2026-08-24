@@ -15,8 +15,8 @@ public class RestClientConfig {
     public RestClient buildLocalRestClient(String baseUrl) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
-        // LLM 生成较慢（本机 CPU），读超时给足 3 分钟
-        factory.setReadTimeout(180_000);
+        // LLM 生成慢（本机 CPU + 模型可能重载），读超时给足 5 分钟
+        factory.setReadTimeout(300_000);
         return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(factory)

@@ -72,3 +72,40 @@
 - ✅ 5 张表 `schema.sql`（启动自动建表）
 - ✅ JWT 登录 / 鉴权 / 退出（Redis 黑名单）
 - ✅ 默认管理员账号 `admin / admin123`
+- ✅ 环境：Docker 运行 MySQL(3307) + Redis(6379)，避开本机 MySQL(3306)
+
+---
+
+## 步骤 3 · 前后端联调 + 用户增删改查
+
+### 3.1 需求（按点）
+
+1. 前端**接入真实后端接口**，替换 mock 数据，打通登录鉴权链路（登录 → 拿 JWT → 携带鉴权）
+2. 后端提供**用户管理接口**：分页查询、新增、修改、删除
+3. 前端新增**「用户管理」页面**，对接上述接口
+4. 前端 **Axios 统一封装**：自动携带 JWT、统一解包 `Result`、`401` 自动跳登录
+
+### 3.2 实现方案（按点）
+
+1. 前端 `api/http.ts`：Axios 实例 + 请求拦截器（带 `Authorization: Bearer`）+ 响应拦截器（解包 Result + 401 跳转）
+2. 前端 `api/auth.ts`：`login` / `me` / `logout` 对接后端
+3. 后端 `UserController`（`/api/admin/users`）：`GET` 分页 / `POST` 新增 / `PUT /{id}` 修改 / `DELETE /{id}` 删除
+4. 后端 `UserService` + `UserDTO` + `UserVO` + `PageResult<T>`
+5. 前端 `UserManagePage`：表格 + 新增/编辑弹窗 + 删除 + 分页
+6. 登录态：token 存 localStorage，当前用户信息存 localStorage；`AdminLayout` 退出时调 `/api/auth/logout` 拉黑 token
+7. 删除保护：不能删除当前登录用户自己
+
+### 3.3 产出
+
+- 后端 user 模块（Controller / Service / DTO / VO / PageResult）
+- 前端 `src/api/`（http.ts、auth.ts、user.ts）
+- 前端 `UserManagePage` + 路由 + 侧边栏导航
+- 更新 `LoginPage` / `AdminLayout` / `Navbar` 接真实接口
+- 统一登录：`/login` 单入口，登录后按角色跳转（ADMIN → /admin，USER → /）
+
+### 3.4 完成情况
+
+- ✅ 后端用户 CRUD 可编译（BUILD SUCCESS）
+- ✅ 前端构建 + 类型检查通过
+- ✅ 统一登录 + 角色跳转
+- ✅ 用户管理页（分页 / 新增 / 编辑 / 删除 / 搜索）

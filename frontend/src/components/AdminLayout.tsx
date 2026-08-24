@@ -1,26 +1,56 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { logout as apiLogout } from '../api/auth'
 
 const navItems = [
   { to: '/admin', label: '仪表盘', icon: '📊', end: true },
+  { to: '/admin/users', label: '用户管理', icon: '👤' },
   { to: '/admin/articles', label: '文章管理', icon: '📝' },
   { to: '/admin/categories', label: '分类管理', icon: '🗂️' },
   { to: '/admin/tags', label: '标签管理', icon: '🏷️' },
 ]
 
+interface StoredUser {
+  userId: number
+  username: string
+  nickname?: string
+  role?: string
+}
+
 export default function AdminLayout() {
   const navigate = useNavigate()
+  const [user, setUser] = useState<StoredUser | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('akb_user') || 'null')
+    } catch {
+      return null
+    }
+  })
 
   useEffect(() => {
-    if (!localStorage.getItem('akb_token')) {
-      navigate('/admin/login', { replace: true })
+    const token = localStorage.getItem('akb_token')
+    if (!token) {
+      navigate('/login', { replace: true })
+      return
     }
-  }, [navigate])
+    // 非管理员不能访问后台
+    if (user && user.role && user.role !== 'ADMIN') {
+      navigate('/', { replace: true })
+    }
+  }, [navigate, user])
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await apiLogout()
+    } catch {
+      // token 可能已过期，忽略
+    }
     localStorage.removeItem('akb_token')
-    navigate('/admin/login')
+    localStorage.removeItem('akb_user')
+    navigate('/login')
   }
+
+  const displayName = user?.nickname || user?.username || 'J'
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -65,9 +95,9 @@ export default function AdminLayout() {
           <h1 className="text-base font-semibold text-slate-800">内容管理</h1>
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600">
-              J
+              {displayName[0]}
             </span>
-            <span className="text-sm text-slate-600">Jice</span>
+            <span className="text-sm text-slate-600">{displayName}</span>
             <button
               onClick={logout}
               className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50"

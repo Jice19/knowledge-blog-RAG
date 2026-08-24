@@ -1,16 +1,44 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { login } from '../../api/auth'
 
+/**
+ * 统一登录页：管理员 → /admin，普通用户 → /
+ */
 export default function LoginPage() {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!username.trim() || !password.trim()) return
-    localStorage.setItem('akb_token', 'mock-token')
-    navigate('/admin')
+    if (!username.trim() || !password) {
+      setError('请输入用户名和密码')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const data = await login({ username: username.trim(), password })
+      localStorage.setItem('akb_token', data.token)
+      localStorage.setItem(
+        'akb_user',
+        JSON.stringify({
+          userId: data.userId,
+          username: data.username,
+          nickname: data.nickname,
+          role: data.role,
+        }),
+      )
+      // 按角色跳转：管理员进后台，普通用户回博客主页
+      navigate(data.role === 'ADMIN' ? '/admin' : '/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登录失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -20,7 +48,7 @@ export default function LoginPage() {
           <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">
             AI
           </span>
-          <h1 className="mt-4 text-xl font-bold text-slate-900">登录管理后台</h1>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">欢迎登录</h1>
           <p className="mt-1 text-sm text-slate-500">AI 智识博客</p>
         </div>
 
@@ -44,15 +72,19 @@ export default function LoginPage() {
               placeholder="请输入密码"
             />
           </div>
+
+          {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+
           <button
             type="submit"
-            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+            disabled={loading}
+            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
           >
-            登 录
+            {loading ? '登录中…' : '登 录'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-slate-400">演示环境：任意账号密码即可登录</p>
+        <p className="mt-4 text-center text-xs text-slate-400">默认管理员账号：admin / admin123</p>
       </div>
     </div>
   )

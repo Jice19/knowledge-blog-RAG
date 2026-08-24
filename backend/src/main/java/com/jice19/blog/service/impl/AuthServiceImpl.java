@@ -36,7 +36,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ResultCode.LOGIN_FAILED);
         }
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
-        return new LoginVO(token, user.getId(), user.getUsername(), user.getNickname());
+        return new LoginVO(token, user.getId(), user.getUsername(), user.getNickname(), user.getRole());
     }
 
     @Override

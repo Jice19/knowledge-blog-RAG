@@ -6,6 +6,7 @@ import ArticlePage from './pages/blog/ArticlePage'
 import CategoryPage from './pages/blog/CategoryPage'
 import LoginPage from './pages/admin/LoginPage'
 import DashboardPage from './pages/admin/DashboardPage'
+import UserManagePage from './pages/admin/UserManagePage'
 import ArticleListPage from './pages/admin/ArticleListPage'
 import ArticleEditPage from './pages/admin/ArticleEditPage'
 import CategoryManagePage from './pages/admin/CategoryManagePage'
@@ -22,9 +23,10 @@ export default function App() {
       </Route>
 
       {/* 后台 */}
-      <Route path="/admin/login" element={<LoginPage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="users" element={<UserManagePage />} />
         <Route path="articles" element={<ArticleListPage />} />
         <Route path="articles/new" element={<ArticleEditPage />} />
         <Route path="articles/:id/edit" element={<ArticleEditPage />} />

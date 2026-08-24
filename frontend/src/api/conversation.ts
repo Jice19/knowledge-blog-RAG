@@ -13,6 +13,16 @@ export function createConversation(title?: string) {
   return http.post('/rag/conversations', undefined, { params: title ? { title } : {} }) as Promise<Conversation>
 }
 
+/** 会话列表 */
+export function listConversations() {
+  return http.get('/rag/conversations') as Promise<Conversation[]>
+}
+
+/** 删除会话 */
+export function deleteConversation(id: number) {
+  return http.delete(`/rag/conversations/${id}`)
+}
+
 export interface ChatMessage {
   id: number
   conversationId: number

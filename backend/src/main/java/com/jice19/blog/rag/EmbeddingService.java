@@ -2,6 +2,7 @@ package com.jice19.blog.rag;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jice19.blog.config.RagProperties;
+import com.jice19.blog.config.RestClientConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -9,6 +10,7 @@ import java.util.Map;
 
 /**
  * Embedding 服务：调用 Ollama 的 /api/embed 把文本向量化。
+ * 使用不走代理的 RestClient（直连本机 Ollama）。
  */
 @Service
 public class EmbeddingService {
@@ -16,9 +18,9 @@ public class EmbeddingService {
     private final RestClient client;
     private final RagProperties props;
 
-    public EmbeddingService(RagProperties props) {
+    public EmbeddingService(RagProperties props, RestClientConfig restClientConfig) {
         this.props = props;
-        this.client = RestClient.builder().baseUrl(props.getOllamaUrl()).build();
+        this.client = restClientConfig.buildLocalRestClient(props.getOllamaUrl());
     }
 
     /** 把文本转成向量 */

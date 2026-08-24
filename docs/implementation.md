@@ -212,4 +212,12 @@
 
 - ✅ Ollama + Qdrant 本地部署（全免费、离线）
 - ✅ Python 端到端验证：4 段文本 → 向量（1024 维）→ 入库 → 问题检索命中（score 0.87）
+- ✅ **Java 侧全链路打通**：`POST /api/admin/rag/ingest` 入库 18 个 chunk；`GET /api/rag/search` 检索命中（score 0.83）
 - ✅ 后端 BUILD SUCCESS
+
+### 7.4 排障记录（重要）
+
+- **现象**：Java 的 PUT 请求"返回 2xx 但未真正写入 Qdrant"，GET/POST 正常
+- **根因 1**：`target/classes` 残留旧 class（新旧代码混杂），`mvn spring-boot:run` 未 clean → 运行的并非最新代码。**必须用 `mvn clean spring-boot:run`**
+- **根因 2**：JDK HttpClient 在本机对 PUT 行为异常 → 改用 `SimpleClientHttpRequestFactory`（HttpURLConnection）
+- **经验**：排查时让请求"响亮失败"（打印原始响应 + 强制验证），不要静默吞错；改代码后务必 clean 重建

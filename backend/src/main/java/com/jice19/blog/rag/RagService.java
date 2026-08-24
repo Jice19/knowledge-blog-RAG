@@ -53,6 +53,34 @@ public class RagService {
         return points.size();
     }
 
+    /** 单篇入库（幂等）：删该文章旧 chunk → 切片 → 向量化 → 入库 */
+    public void ingestArticle(Long id) {
+        Article a = articleMapper.selectById(id);
+        if (a == null || a.getStatus() != 1) {
+            return;
+        }
+        vectorStoreService.ensureCollection(props.getCollection());
+        vectorStoreService.deleteByArticleId(props.getCollection(), id);
+
+        List<Map<String, Object>> points = new ArrayList<>();
+        List<Chunk> chunks = chunkService.chunk(a.getContent());
+        for (int i = 0; i < chunks.size(); i++) {
+            Chunk c = chunks.get(i);
+            float[] vec = embeddingService.embed(c.text());
+            points.add(Map.of("id", id * 1000L + i, "vector", vec,
+                    "payload", Map.of("articleId", id, "articleTitle", a.getTitle(),
+                            "heading", c.headingPath(), "text", c.text())));
+        }
+        if (!points.isEmpty()) {
+            vectorStoreService.upsertPoints(props.getCollection(), points);
+        }
+    }
+
+    /** 删除某篇文章的全部向量 */
+    public void removeArticle(Long id) {
+        vectorStoreService.deleteByArticleId(props.getCollection(), id);
+    }
+
     /** 检索：问题 → 向量化 → Qdrant 相似度 Top N */
     public List<JsonNode> search(String query, int topK) {
         float[] vec = embeddingService.embed(query);

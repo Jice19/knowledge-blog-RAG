@@ -18,11 +18,14 @@ import com.jice19.blog.mapper.ArticleTagMapper;
 import com.jice19.blog.mapper.CategoryMapper;
 import com.jice19.blog.mapper.TagMapper;
 import com.jice19.blog.mapper.UserMapper;
+import com.jice19.blog.rag.ArticleChangedEvent;
+import com.jice19.blog.rag.RagArticleMessage;
 import com.jice19.blog.security.UserContext;
 import com.jice19.blog.service.ArticleService;
 import com.jice19.blog.vo.ArticleVO;
 import com.jice19.blog.vo.TagVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +62,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final UserMapper userMapper;
+    private final ApplicationEventPublisher eventPublisher;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -173,6 +177,9 @@ public class ArticleServiceImpl implements ArticleService {
         a.setViewCount(0);
         articleMapper.insert(a);
         saveTags(a.getId(), dto.getTagIds());
+        if (a.getStatus() == 1) {
+            eventPublisher.publishEvent(new ArticleChangedEvent(a.getId(), RagArticleMessage.INGEST));
+        }
     }
 
     @Override
@@ -192,6 +199,8 @@ public class ArticleServiceImpl implements ArticleService {
         articleTagMapper.delete(new LambdaQueryWrapper<ArticleTag>().eq(ArticleTag::getArticleId, id));
         saveTags(id, dto.getTagIds());
         evictDetailCache(id);
+        eventPublisher.publishEvent(new ArticleChangedEvent(id,
+                a.getStatus() == 1 ? RagArticleMessage.INGEST : RagArticleMessage.DELETE));
     }
 
     @Override
@@ -201,6 +210,7 @@ public class ArticleServiceImpl implements ArticleService {
         articleTagMapper.delete(new LambdaQueryWrapper<ArticleTag>().eq(ArticleTag::getArticleId, id));
         evictDetailCache(id);
         redisTemplate.opsForZSet().remove(HOT_KEY, String.valueOf(id));
+        eventPublisher.publishEvent(new ArticleChangedEvent(id, RagArticleMessage.DELETE));
     }
 
     private void saveTags(Long articleId, List<Long> tagIds) {

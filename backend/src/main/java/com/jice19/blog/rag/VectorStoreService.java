@@ -79,6 +79,16 @@ public class VectorStoreService {
         }
     }
 
+    /** 按 payload 过滤删除：删除某篇文章的全部 chunk */
+    public void deleteByArticleId(String collection, Long articleId) {
+        Map<String, Object> filter = Map.of("must", List.of(
+                Map.of("key", "articleId", "match", Map.of("value", articleId))));
+        client.post()
+                .uri("/collections/{c}/points/delete", collection)
+                .body(Map.of("filter", filter))
+                .retrieve();
+    }
+
     /** 相似度检索：返回 Top N 命中的 payload */
     public List<JsonNode> search(String collection, float[] vector, int topK) {
         Map<String, Object> body = Map.of(

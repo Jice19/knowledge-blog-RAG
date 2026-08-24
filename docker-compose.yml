@@ -30,6 +30,13 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
 
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: akb-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
 volumes:
   mysql-data:
   qdrant-data:

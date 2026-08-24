@@ -59,6 +59,9 @@ export default function Navbar() {
           <NavLink to="/" end className={linkCls}>
             首页
           </NavLink>
+          <NavLink to="/rag" className={linkCls}>
+            AI 问答
+          </NavLink>
           {categories.slice(0, 4).map((c) => (
             <NavLink key={c.id} to={`/category/${c.slug}`} className={linkCls}>
               {c.name}

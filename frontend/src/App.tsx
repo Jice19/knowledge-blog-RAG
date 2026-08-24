@@ -4,6 +4,7 @@ import AdminLayout from './components/AdminLayout'
 import HomePage from './pages/blog/HomePage'
 import ArticlePage from './pages/blog/ArticlePage'
 import CategoryPage from './pages/blog/CategoryPage'
+import RagPage from './pages/blog/RagPage'
 import LoginPage from './pages/admin/LoginPage'
 import DashboardPage from './pages/admin/DashboardPage'
 import UserManagePage from './pages/admin/UserManagePage'
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/article/:id" element={<ArticlePage />} />
         <Route path="/category/:slug" element={<CategoryPage />} />
+        <Route path="/rag" element={<RagPage />} />
       </Route>
 
       {/* 后台 */}

@@ -28,7 +28,6 @@ public class RagService {
 
     /**
      * 全量入库：所有「已发布」文章 → 按标题切片 → 向量化 → 存入 Qdrant。
-     * 返回入库的 chunk 数量。
      */
     public int ingestAll() {
         List<Article> articles = articleMapper.selectList(
@@ -61,10 +60,10 @@ public class RagService {
     }
 
     /**
-     * 问答（RAG 闭环）：
-     * 问题 → 检索 Top N chunk → 组装 prompt → LLM 生成答案 → 返回「答案 + 引用来源」
+     * 构建问答上下文：检索 Top N → 组装 prompt（system + user）→ 返回上下文与引用来源。
+     * 供「非流式 ask」与「流式 askStream」共用。
      */
-    public AskResult ask(String question, int topK) {
+    public AskContext buildContext(String question, int topK) {
         List<JsonNode> hits = search(question, topK);
 
         StringBuilder context = new StringBuilder();
@@ -88,8 +87,17 @@ public class RagService {
         String system = "你是技术知识库问答助手。请只根据提供的资料回答问题，不要编造资料中没有的内容；"
                 + "如果资料不足以回答，请如实说明。用中文回答，简洁清晰。";
         String user = "以下是从知识库检索到的相关资料：\n\n" + context + "问题：" + question;
+        return new AskContext(system, user, refs);
+    }
 
-        String answer = chatService.chat(system, user);
-        return new AskResult(answer, refs);
+    /** 非流式问答 */
+    public AskResult ask(String question, int topK) {
+        AskContext ctx = buildContext(question, topK);
+        String answer = chatService.chat(ctx.system(), ctx.user());
+        return new AskResult(answer, ctx.references());
+    }
+
+    /** 问答上下文（system / user prompt + 引用来源） */
+    public record AskContext(String system, String user, List<AskResult.Reference> references) {
     }
 }

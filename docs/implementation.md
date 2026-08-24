@@ -243,3 +243,26 @@
 - ✅ 后端 clean 构建 BUILD SUCCESS
 - ✅ Python 端到端验证：问题 → 检索 3 chunk → qwen3:1.7b 生成高质量答案（准确涵盖 Java 17 / Jakarta EE / Initializr，无编造）
 - ✅ `GET /api/rag/ask` 接口就绪
+
+---
+
+## 步骤 9 · SSE 流式问答前端（2.5）
+
+### 9.1 需求（按点）
+
+1. 后端 **SSE 流式接口**：逐 token 推送（打字机效果），不用干等 50 秒
+2. 前端**问答页面**：输入问题 → 流式展示答案 → 显示引用来源
+
+### 9.2 实现方案（按点）
+
+1. `ChatService.chatStream`：Ollama `stream=true`，解析 NDJSON 流，逐 token 经 `SseEmitter` 推送（event 名 `token`）
+2. `RagService.buildContext`：检索 + prompt 构建抽成公共方法，供流式/非流式共用
+3. `GET /api/rag/ask/stream`：先推 token 事件 → 完成后推 `references` 事件 → complete
+4. 前端 `api/rag.ts`：`EventSource` 订阅 `token` / `references` 事件
+5. `RagPage`：问答界面（思考中光标 → 流式答案 → 引用来源链接可跳转文章）
+
+### 9.3 完成情况
+
+- ✅ 后端 + 前端构建通过
+- ✅ 验证 qwen3 流式格式：`thinking`（内部推理）先行、`content`（正式答案）后出，content 最终非空
+- ✅ `/api/rag/ask/stream` + 前端 `RagPage` 就绪

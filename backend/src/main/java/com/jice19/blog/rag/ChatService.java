@@ -1,34 +1,42 @@
 package com.jice19.blog.rag;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jice19.blog.config.RagProperties;
 import com.jice19.blog.config.RestClientConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 大模型对话服务：调用 Ollama /api/chat 生成回答（qwen3:1.7b）。
+ * 大模型对话服务：调 Ollama /api/chat（qwen3:1.7b）。
+ * 支持一次性生成（chat）与 SSE 流式逐 token 生成（chatStream）。
  */
 @Service
 public class ChatService {
 
     private final RestClient client;
     private final RagProperties props;
+    private final ObjectMapper objectMapper;
 
-    public ChatService(RagProperties props, RestClientConfig restClientConfig) {
+    public ChatService(RagProperties props, RestClientConfig restClientConfig, ObjectMapper objectMapper) {
         this.props = props;
+        this.objectMapper = objectMapper;
         this.client = restClientConfig.buildLocalRestClient(props.getOllamaUrl());
     }
 
-    /** 单轮对话：system 定角色，user 给上下文+问题，返回助手回答 */
+    /** 单轮对话（非流式）：system 定角色，user 给上下文+问题，返回助手回答 */
     public String chat(String system, String user) {
         Map<String, Object> body = Map.of(
                 "model", props.getChatModel(),
                 "stream", false,
-                // 保持模型加载 30 分钟，避免空闲被卸载后重载（重载要 1~2 分钟）
                 "keep_alive", "30m",
                 "messages", List.of(
                         Map.of("role", "system", "content", system),
@@ -43,5 +51,46 @@ public class ChatService {
             throw new IllegalStateException("Ollama Chat 返回为空");
         }
         return resp.path("message").path("content").asText();
+    }
+
+    /**
+     * 流式对话：请求 Ollama stream=true，解析 NDJSON 流，
+     * 把每个 token 通过 SseEmitter（event 名 token）逐字推送给前端。
+     */
+    public void chatStream(String system, String user, SseEmitter emitter) {
+        Map<String, Object> body = Map.of(
+                "model", props.getChatModel(),
+                "stream", true,
+                "keep_alive", "30m",
+                "messages", List.of(
+                        Map.of("role", "system", "content", system),
+                        Map.of("role", "user", "content", user)
+                ));
+        client.post()
+                .uri("/api/chat")
+                .body(body)
+                .exchange((request, response) -> {
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            if (line.isBlank()) {
+                                continue;
+                            }
+                            JsonNode node = objectMapper.readTree(line);
+                            String content = node.path("message").path("content").asText();
+                            boolean done = node.path("done").asBoolean(false);
+                            if (!content.isEmpty()) {
+                                emitter.send(SseEmitter.event().name("token").data(content));
+                            }
+                            if (done) {
+                                break;
+                            }
+                        }
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                    return null;
+                });
     }
 }

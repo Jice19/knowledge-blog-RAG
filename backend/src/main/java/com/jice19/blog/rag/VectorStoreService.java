@@ -19,6 +19,10 @@ import java.util.Map;
 @Service
 public class VectorStoreService {
 
+    /** 命名向量：稠密向量（Ollama embedding）与稀疏向量（客户端 BM25） */
+    public static final String DENSE = "dense";
+    public static final String SPARSE = "sparse";
+
     private final RestClient client;
     private final RagProperties props;
 
@@ -39,7 +43,8 @@ public class VectorStoreService {
         }
 
         Map<String, Object> body = Map.of(
-                "vectors", Map.of("size", props.getVectorSize(), "distance", "Cosine"));
+                "vectors", Map.of(DENSE, Map.of("size", props.getVectorSize(), "distance", "Cosine")),
+                "sparse_vectors", Map.of(SPARSE, Map.of("modifier", "idf")));
         try {
             String resp = client.put()
                     .uri("/collections/{name}", name)
@@ -89,10 +94,11 @@ public class VectorStoreService {
                 .retrieve();
     }
 
-    /** 相似度检索：返回 Top N 命中的 payload */
+    /** 相似度检索（纯稠密）：返回 Top N 命中的 payload */
     public List<JsonNode> search(String collection, float[] vector, int topK) {
         Map<String, Object> body = Map.of(
                 "vector", vector,
+                "using", DENSE,
                 "limit", topK,
                 "with_payload", true);
         JsonNode resp = client.post()
@@ -106,6 +112,39 @@ public class VectorStoreService {
         JsonNode result = resp.path("result");
         List<JsonNode> hits = new ArrayList<>();
         result.forEach(hits::add);
+        return hits;
+    }
+
+    /** 双路混合检索：dense 向量 + sparse(BM25) 稀疏向量 → RRF 融合 → Top N */
+    public List<JsonNode> hybridSearch(String collection, float[] dense,
+                                       int[] sparseIndices, float[] sparseValues, int topK) {
+        Map<String, Object> densePrefetch = Map.of(
+                "query", (Object) dense,
+                "using", DENSE,
+                "limit", topK * 2,
+                "with_payload", true);
+        Map<String, Object> sparsePrefetch = Map.of(
+                "query", Map.of("indices", sparseIndices, "values", sparseValues),
+                "using", SPARSE,
+                "limit", topK * 2,
+                "with_payload", true);
+        Map<String, Object> body = Map.of(
+                "prefetch", List.of(densePrefetch, sparsePrefetch),
+                "query", Map.of("fusion", "rrf"),
+                "limit", topK,
+                "with_payload", true);
+
+        JsonNode resp = client.post()
+                .uri("/collections/{c}/points/query", collection)
+                .body(body)
+                .retrieve()
+                .body(JsonNode.class);
+        if (resp == null) {
+            return List.of();
+        }
+        JsonNode points = resp.path("result").path("points");
+        List<JsonNode> hits = new ArrayList<>();
+        points.forEach(hits::add);
         return hits;
     }
 }

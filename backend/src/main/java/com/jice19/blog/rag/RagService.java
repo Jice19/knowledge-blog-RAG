@@ -21,6 +21,7 @@ public class RagService {
 
     private final ChunkService chunkService;
     private final EmbeddingService embeddingService;
+    private final SparseVectorService sparseVectorService;
     private final VectorStoreService vectorStoreService;
     private final ChatService chatService;
     private final RagProperties props;
@@ -38,13 +39,7 @@ public class RagService {
         long seq = 1;
         for (Article a : articles) {
             for (Chunk c : chunkService.chunk(a.getContent())) {
-                float[] vec = embeddingService.embed(c.text());
-                Map<String, Object> payload = Map.of(
-                        "articleId", a.getId(),
-                        "articleTitle", a.getTitle(),
-                        "heading", c.headingPath(),
-                        "text", c.text());
-                points.add(Map.of("id", seq++, "vector", vec, "payload", payload));
+                points.add(buildPoint(seq++, c, a));
             }
         }
         if (!points.isEmpty()) {
@@ -65,11 +60,7 @@ public class RagService {
         List<Map<String, Object>> points = new ArrayList<>();
         List<Chunk> chunks = chunkService.chunk(a.getContent());
         for (int i = 0; i < chunks.size(); i++) {
-            Chunk c = chunks.get(i);
-            float[] vec = embeddingService.embed(c.text());
-            points.add(Map.of("id", id * 1000L + i, "vector", vec,
-                    "payload", Map.of("articleId", id, "articleTitle", a.getTitle(),
-                            "heading", c.headingPath(), "text", c.text())));
+            points.add(buildPoint(id * 1000L + i, chunks.get(i), a));
         }
         if (!points.isEmpty()) {
             vectorStoreService.upsertPoints(props.getCollection(), points);
@@ -81,10 +72,30 @@ public class RagService {
         vectorStoreService.deleteByArticleId(props.getCollection(), id);
     }
 
-    /** 检索：问题 → 向量化 → Qdrant 相似度 Top N */
+    /** 检索：双路混合（BM25 关键词 + 向量语义，RRF 融合）；问题无有效分词时退化纯向量检索 */
     public List<JsonNode> search(String query, int topK) {
-        float[] vec = embeddingService.embed(query);
-        return vectorStoreService.search(props.getCollection(), vec, topK);
+        float[] dense = embeddingService.embed(query);
+        SparseVectorService.SparseVector sparse = sparseVectorService.encode(query);
+        if (sparse.indices().length == 0) {
+            return vectorStoreService.search(props.getCollection(), dense, topK);
+        }
+        return vectorStoreService.hybridSearch(props.getCollection(), dense,
+                sparse.indices(), sparse.values(), topK);
+    }
+
+    /** 构建一个 point：稠密向量 + BM25 稀疏向量 + payload（标题/章节/原文） */
+    private Map<String, Object> buildPoint(long id, Chunk c, Article a) {
+        float[] vec = embeddingService.embed(c.text());
+        SparseVectorService.SparseVector sp = sparseVectorService.encode(c.text());
+        Map<String, Object> vector = Map.of(
+                VectorStoreService.DENSE, (Object) vec,
+                VectorStoreService.SPARSE, Map.of("indices", sp.indices(), "values", sp.values()));
+        Map<String, Object> payload = Map.of(
+                "articleId", a.getId(),
+                "articleTitle", a.getTitle(),
+                "heading", c.headingPath(),
+                "text", c.text());
+        return Map.of("id", id, "vector", vector, "payload", payload);
     }
 
     /**

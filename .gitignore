@@ -1,0 +1,29 @@
+# Node / 前端
+node_modules/
+dist/
+dist-ssr/
+*.local
+pnpm-lock.yaml
+
+# Java / 后端
+target/
+*.class
+
+# Python / MinerU
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 环境变量
+.env
+.env.*
+
+# 日志
+*.log
+
+# 系统 / IDE
+.DS_Store
+.idea/
+.vscode/
+*.iml

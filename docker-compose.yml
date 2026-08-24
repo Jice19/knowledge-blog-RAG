@@ -6,7 +6,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ai_knowledge_blog
     ports:
-      - "3306:3306"
+      - "3307:3306"  # 宿主机 3307 → 容器 3306（避开本机 MySQL 占用的 3306）
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:

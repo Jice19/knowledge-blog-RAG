@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { askStream, type AskReference } from '../../api/rag'
+import Markdown from '../../components/Markdown'
 
 /** 旋转的加载图标 */
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
@@ -60,7 +61,13 @@ export default function RagPage() {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && ask()}
+          onKeyDown={(e) => {
+            // 中文输入法组合状态下按 Enter 是"选词"，不能触发发送
+            const ne = e.nativeEvent as KeyboardEvent
+            if (e.key === 'Enter' && !ne.isComposing && ne.keyCode !== 229) {
+              ask()
+            }
+          }}
           disabled={loading}
           placeholder="输入你的问题，如：Redis 缓存有哪些经典问题？"
           className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
@@ -97,8 +104,8 @@ export default function RagPage() {
         </div>
       )}
 
-      {/* 流式/完成阶段：有答案了 */}
-      {(answer || (!loading && error)) && (
+      {/* 流式/完成阶段：有答案了（Markdown 渲染） */}
+      {answer && (
         <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-3">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">
@@ -107,10 +114,10 @@ export default function RagPage() {
             <span className="text-sm font-medium text-slate-600">回答</span>
             {loading && <Spinner className="ml-auto h-4 w-4 text-indigo-500" />}
           </div>
-          <div className="whitespace-pre-wrap px-6 py-5 text-[15px] leading-relaxed text-slate-700">
-            {answer}
+          <div className="px-6 py-5">
+            <Markdown content={answer} />
             {loading && (
-              <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-indigo-500 align-middle" />
+              <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-indigo-500" />
             )}
           </div>
         </div>

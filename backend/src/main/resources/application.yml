@@ -39,6 +39,6 @@ rag:
   ollama-url: http://localhost:11434
   qdrant-url: http://localhost:6333
   embedding-model: mxbai-embed-large
-  chat-model: qwen3:1.7b
+  chat-model: qwen3:0.6b
   collection: blog_chunks
   vector-size: 1024

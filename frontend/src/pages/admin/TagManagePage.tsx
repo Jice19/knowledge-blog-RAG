@@ -46,7 +46,10 @@ export default function TagManagePage() {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
+          onKeyDown={(e) => {
+            const ne = e.nativeEvent as KeyboardEvent
+            if (e.key === 'Enter' && !ne.isComposing && ne.keyCode !== 229) add()
+          }}
           className="w-64 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
           placeholder="新标签名称"
         />

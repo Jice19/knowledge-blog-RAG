@@ -65,3 +65,26 @@ CREATE TABLE IF NOT EXISTS `article_tag` (
     PRIMARY KEY (`article_id`, `tag_id`),
     KEY `idx_tag` (`tag_id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '文章-标签关联表';
+
+-- 会话窗口表
+CREATE TABLE IF NOT EXISTS `conversation` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`     BIGINT       NOT NULL DEFAULT 1 COMMENT '所属用户',
+    `title`       VARCHAR(100) NOT NULL DEFAULT '新会话' COMMENT '会话标题',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user` (`user_id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '会话窗口表';
+
+-- 会话消息表
+CREATE TABLE IF NOT EXISTS `message` (
+    `id`              BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `conversation_id` BIGINT      NOT NULL COMMENT '所属会话',
+    `role`            VARCHAR(20) NOT NULL COMMENT 'user / assistant',
+    `content`         TEXT        NOT NULL COMMENT '消息内容',
+    `references_json` TEXT        DEFAULT NULL COMMENT '引用来源 JSON',
+    `create_time`     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_conversation` (`conversation_id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '会话消息表';

@@ -60,11 +60,13 @@ public class RagService {
     }
 
     /**
-     * 构建问答上下文：检索 Top N → 组装 prompt（system + user）→ 返回上下文与引用来源。
+     * 构建问答上下文：Query 改写（多轮）→ 检索 Top N → 组装 prompt → 返回上下文与引用来源。
      * 供「非流式 ask」与「流式 askStream」共用。
      */
-    public AskContext buildContext(String question, int topK) {
-        List<JsonNode> hits = search(question, topK);
+    public AskContext buildContext(String question, int topK, List<Map<String, String>> history) {
+        // 多轮改写：结合历史把问题改写成独立查询，提升检索召回；无历史则原样
+        String query = chatService.rewriteQuery(question, history);
+        List<JsonNode> hits = search(query, topK);
 
         StringBuilder context = new StringBuilder();
         List<AskResult.Reference> refs = new ArrayList<>();
@@ -91,8 +93,8 @@ public class RagService {
     }
 
     /** 非流式问答 */
-    public AskResult ask(String question, int topK) {
-        AskContext ctx = buildContext(question, topK);
+    public AskResult ask(String question, int topK, List<Map<String, String>> history) {
+        AskContext ctx = buildContext(question, topK, history);
         String answer = chatService.chat(ctx.system(), ctx.user());
         return new AskResult(answer, ctx.references());
     }

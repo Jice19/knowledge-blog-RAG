@@ -17,9 +17,14 @@ export interface AskHandlers {
  * 通过 EventSource 订阅 /api/rag/ask/stream，
  * 逐 token 回调 onToken，完成后回调 onReferences（引用来源）。
  */
-export function askStream(q: string, topK: number, handlers: AskHandlers) {
+export function askStream(
+  q: string,
+  topK: number,
+  conversationId: number | null,
+  handlers: AskHandlers,
+) {
   const es = new EventSource(
-    `/api/rag/ask/stream?q=${encodeURIComponent(q)}&topK=${topK}`,
+    `/api/rag/ask/stream?q=${encodeURIComponent(q)}&topK=${topK}&conversationId=${conversationId ?? ''}`,
   )
   let finished = false
 

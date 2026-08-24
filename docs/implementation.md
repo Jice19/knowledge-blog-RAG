@@ -266,3 +266,36 @@
 - ✅ 后端 + 前端构建通过
 - ✅ 验证 qwen3 流式格式：`thinking`（内部推理）先行、`content`（正式答案）后出，content 最终非空
 - ✅ `/api/rag/ask/stream` + 前端 `RagPage` 就绪
+
+---
+
+## 步骤 10 · 语料扩充 + 前端分页 + Query 改写
+
+### 10.1 语料扩充
+- 脚本批量生成并插入 **300 篇**文章（20 主题 × 模板组合），数据库共 306 篇（305 已发布）
+- 全量切片向量化：**1526 个 chunk** 写入 Qdrant（批量 Embedding，16 分钟）
+- 检索验证：问「Nginx 反向代理」命中 Nginx 新文章（score 0.93+）
+- 说明：生成脚本未入库 git；语料为模板生成，用于验证大语料场景
+
+### 10.2 前端分页
+- 首页改为**分页展示**（每页 12 篇，上一页/下一页 + 共 N 篇），分类切换重置页码
+
+### 10.3 Query 改写（多轮）
+- `ChatService.rewriteQuery`：结合历史对话用 LLM 改写成独立查询
+- `RagService.buildContext` / `ask` 支持 history 参数；`/api/rag/ask` 与 `/ask/stream` 均接受 `history`（JSON）
+- 前端 `RagPage` 记录最近对话轮次并随请求传递（多轮改写 → 提升检索召回）
+
+## 步骤 11 · 多轮会话（S1+S2：后端会话 + 前端最小接入）
+
+### 11.1 完成情况
+
+- **数据表**：新增 `conversation`（会话窗口）+ `message`（会话消息，含 references_json），启动自动建表
+- **后端**：`ConversationService`（列表/新建/删除/消息/历史）+ `ConversationController`（`/api/rag/conversations`）
+- **多轮问答**：`/api/rag/ask` 与 `/ask/stream` 支持 `conversationId` —— 从库加载历史 → Query 改写 → 检索 → 生成 → 保存 user/assistant 消息；新会话自动用首问更新标题
+- **前端最小接入**：首次提问自动建会话；「新建会话」按钮重置；`askStream` 传 `conversationId`
+- **待办（S3）**：完整会话侧边栏（列表/切换/删除）、历史消息气泡回显 —— 见 `task-conversation.md`
+
+### 10.4 多路召回调研结论（本轮验证）
+- Qdrant 1.18 支持全文检索与 RRF 融合，dense 向量 + RRF 融合已验证可用
+- **BM25 text 查询的 API 格式与文档不一致**（`/points/query` 的 `{"query":{"text":...}}` 报错），待后续按 Qdrant 实际 API 调整；text 索引已创建
+- 详见 `rag-advanced-design.md` §2

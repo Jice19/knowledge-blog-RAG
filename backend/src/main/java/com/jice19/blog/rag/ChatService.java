@@ -32,6 +32,27 @@ public class ChatService {
         this.client = restClientConfig.buildLocalRestClient(props.getOllamaUrl());
     }
 
+    private static final String SYSTEM_REWRITE =
+            "你是对话改写助手。请把用户当前问题改写成一条不依赖上下文的独立查询，"
+            + "保留关键信息与实体，只输出改写结果，不要任何解释。";
+
+    /**
+     * 多轮 Query 改写：结合历史对话，把当前问题改写成独立查询（用于提升检索召回）。
+     * 无历史时原样返回。
+     */
+    public String rewriteQuery(String question, List<Map<String, String>> history) {
+        if (history == null || history.isEmpty()) {
+            return question;
+        }
+        StringBuilder sb = new StringBuilder("以下是对话历史：\n");
+        for (Map<String, String> h : history) {
+            sb.append("用户：").append(h.get("q")).append("\n");
+            sb.append("助手：").append(h.get("a")).append("\n");
+        }
+        sb.append("当前问题：").append(question);
+        return chat(SYSTEM_REWRITE, sb.toString()).trim();
+    }
+
     /** 单轮对话（非流式）：system 定角色，user 给上下文+问题，返回助手回答 */
     public String chat(String system, String user) {
         Map<String, Object> body = Map.of(
@@ -57,7 +78,7 @@ public class ChatService {
      * 流式对话：请求 Ollama stream=true，解析 NDJSON 流，
      * 把每个 token 通过 SseEmitter（event 名 token）逐字推送给前端。
      */
-    public void chatStream(String system, String user, SseEmitter emitter) {
+    public void chatStream(String system, String user, SseEmitter emitter, StringBuilder collector) {
         Map<String, Object> body = Map.of(
                 "model", props.getChatModel(),
                 "stream", true,
@@ -82,6 +103,9 @@ public class ChatService {
                             boolean done = node.path("done").asBoolean(false);
                             if (!content.isEmpty()) {
                                 emitter.send(SseEmitter.event().name("token").data(content));
+                                if (collector != null) {
+                                    collector.append(content);
+                                }
                             }
                             if (done) {
                                 break;

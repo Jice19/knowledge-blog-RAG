@@ -187,3 +187,29 @@
 
 - ✅ 后端 + 前端 BUILD SUCCESS
 - ✅ 热点判定 + 详情缓存 + 热门榜接口 + 前台展示
+
+---
+
+## 步骤 7 · RAG 基础链路（2.1~2.3）：切片 → 向量化 → 入库 → 检索
+
+### 7.1 需求（按点）
+
+1. **本地部署**：Ollama（`qwen3:1.7b` 生成 + `mxbai-embed-large` 向量化）+ Qdrant（向量库）
+2. 文章按标题切片，生成 chunk + 标题路径
+3. 切片向量化后存入 Qdrant
+4. 问题向量化后检索 Top N
+
+### 7.2 实现方案（按点）
+
+1. `RagProperties`：ollama/qdrant 地址、模型、集合名、向量维度（application.yml `rag.*`）
+2. `EmbeddingService`：调 Ollama `/api/embed`（RestClient，无需 Spring AI）
+3. `VectorStoreService`：Qdrant REST 建集合 / upsert / search
+4. `ChunkService`：按 `##` 标题切片（简化版，后续可换 AST）
+5. `RagService` + `RagController`：`POST /api/admin/rag/ingest` 全量入库；`GET /api/rag/search` 检索
+6. `docker-compose.yml` 增加 qdrant 服务
+
+### 7.3 完成情况
+
+- ✅ Ollama + Qdrant 本地部署（全免费、离线）
+- ✅ Python 端到端验证：4 段文本 → 向量（1024 维）→ 入库 → 问题检索命中（score 0.87）
+- ✅ 后端 BUILD SUCCESS

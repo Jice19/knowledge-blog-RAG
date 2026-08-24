@@ -33,3 +33,12 @@ jwt:
 logging:
   level:
     com.jice19.blog: debug
+
+# RAG / 向量检索配置
+rag:
+  ollama-url: http://localhost:11434
+  qdrant-url: http://localhost:6333
+  embedding-model: mxbai-embed-large
+  chat-model: qwen3:1.7b
+  collection: blog_chunks
+  vector-size: 1024

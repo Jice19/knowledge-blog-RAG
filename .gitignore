@@ -22,6 +22,10 @@ venv/
 # 日志
 *.log
 
+# 运行时生成（本地环境相关，不入库）
+content/imported_articles.json
+evaluation/report.md
+
 # 系统 / IDE
 .DS_Store
 .idea/

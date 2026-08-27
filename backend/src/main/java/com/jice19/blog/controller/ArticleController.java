@@ -83,4 +83,11 @@ public class ArticleController {
         articleService.delete(id);
         return Result.success();
     }
+
+    /** 管理端：批量删除文章 */
+    @DeleteMapping("/api/admin/articles/batch")
+    public Result<Void> deleteBatch(@RequestBody List<Long> ids) {
+        articleService.deleteBatch(ids);
+        return Result.success();
+    }
 }

@@ -28,4 +28,7 @@ public interface ArticleService {
     void update(Long id, ArticleDTO dto);
 
     void delete(Long id);
+
+    /** 批量删除 */
+    void deleteBatch(List<Long> ids);
 }

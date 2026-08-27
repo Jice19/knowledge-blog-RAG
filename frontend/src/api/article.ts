@@ -19,6 +19,7 @@ export interface ArticleVO {
   authorName: string
   status: number
   viewCount: number
+  vectorStatus?: number
   createTime: string
   updateTime: string
 }
@@ -75,4 +76,8 @@ export function updateArticle(id: number, data: ArticleDTO) {
 
 export function deleteArticle(id: number) {
   return http.delete(`/admin/articles/${id}`)
+}
+
+export function deleteBatchArticles(ids: number[]) {
+  return http.delete('/admin/articles/batch', { data: ids })
 }

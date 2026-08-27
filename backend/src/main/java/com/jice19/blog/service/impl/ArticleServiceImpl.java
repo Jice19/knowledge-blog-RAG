@@ -175,6 +175,7 @@ public class ArticleServiceImpl implements ArticleService {
         a.setAuthorId(UserContext.get().userId());
         a.setStatus(dto.getStatus() == null ? 0 : dto.getStatus());
         a.setViewCount(0);
+        a.setVectorStatus(0);
         articleMapper.insert(a);
         saveTags(a.getId(), dto.getTagIds());
         if (a.getStatus() == 1) {
@@ -211,6 +212,22 @@ public class ArticleServiceImpl implements ArticleService {
         evictDetailCache(id);
         redisTemplate.opsForZSet().remove(HOT_KEY, String.valueOf(id));
         eventPublisher.publishEvent(new ArticleChangedEvent(id, RagArticleMessage.DELETE));
+    }
+
+    @Override
+    @Transactional
+    public void deleteBatch(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        articleMapper.deleteBatchIds(ids);
+        articleTagMapper.delete(new LambdaQueryWrapper<ArticleTag>().in(ArticleTag::getArticleId, ids));
+        for (Long id : ids) {
+            evictDetailCache(id);
+            redisTemplate.opsForZSet().remove(HOT_KEY, String.valueOf(id));
+            // 删除后发 DELETE 消息：清理已入库向量；排队中的入库任务消费时会因查不到文章而跳过
+            eventPublisher.publishEvent(new ArticleChangedEvent(id, RagArticleMessage.DELETE));
+        }
     }
 
     private void saveTags(Long articleId, List<Long> tagIds) {
@@ -285,6 +302,7 @@ public class ArticleServiceImpl implements ArticleService {
         vo.setAuthorId(a.getAuthorId());
         vo.setStatus(a.getStatus());
         vo.setViewCount(a.getViewCount());
+        vo.setVectorStatus(a.getVectorStatus());
         vo.setCreateTime(a.getCreateTime());
         vo.setUpdateTime(a.getUpdateTime());
 

@@ -24,6 +24,7 @@ public class ArticleVO {
     private String authorName;
     private Integer status;
     private Integer viewCount;
+    private Integer vectorStatus;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

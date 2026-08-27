@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS `article` (
     `author_id`   BIGINT       NOT NULL COMMENT '作者 ID',
     `status`      TINYINT      NOT NULL DEFAULT 0 COMMENT '状态: 0草稿 1已发布',
     `view_count`  INT          NOT NULL DEFAULT 0 COMMENT '浏览量',
+    `vector_status` TINYINT    NOT NULL DEFAULT 0 COMMENT '向量化状态: 0待入库 1入库中 2已入库 3失败',
     `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),

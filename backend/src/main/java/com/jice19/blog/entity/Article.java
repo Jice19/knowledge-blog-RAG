@@ -34,6 +34,9 @@ public class Article {
     /** 0 草稿 / 1 已发布 */
     private Integer status;
 
+    /** 向量化状态：0 待入库 / 1 入库中 / 2 已入库 / 3 失败 */
+    private Integer vectorStatus;
+
     private Integer viewCount;
 
     private LocalDateTime createTime;

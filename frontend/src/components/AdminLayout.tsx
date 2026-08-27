@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin/articles', label: '文章管理', icon: '📝' },
   { to: '/admin/categories', label: '分类管理', icon: '🗂️' },
   { to: '/admin/tags', label: '标签管理', icon: '🏷️' },
+  { to: '/admin/notes', label: '笔记导入', icon: '📥' },
 ]
 
 interface StoredUser {

@@ -10,10 +10,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Markdown 按标题切片（以 ## 二级标题为边界）。
- * 标题块超长时按句子二次切分 + 相邻片段 overlap 重叠，避免语义断裂与上下文丢失；
- * 子片继承原标题，引用溯源不受影响。
- * 说明：生产可用 commonmark-java/flexmark 做 AST 解析，避免代码块里的 # / 换行误判。
+ * Markdown 切片：支持 # / ## / ### 多级标题，切片 heading 存完整标题路径（如 "Redis > 缓存 > 穿透"）。
+ * 标题块超长时按句子二次切分 + overlap，子片继承标题路径；扫描标题时跳过代码块，避免代码里的 # 误判。
  */
 @Service
 @RequiredArgsConstructor
@@ -21,7 +19,10 @@ public class ChunkService {
 
     private final RagProperties props;
 
-    /** 句子边界：中文/英文句末标点 + 换行（保留分隔符，避免"第一句。"被切掉句号） */
+    /** 一/二/三级标题：level + 标题文本 */
+    private static final Pattern HEADING = Pattern.compile("^(#{1,3})\\s+(.+)$");
+
+    /** 句子边界：中文/英文句末标点 + 换行 */
     private static final Pattern SENTENCE_END = Pattern.compile("[。！？!?；;\\n]+");
 
     public List<Chunk> chunk(String markdown) {
@@ -32,35 +33,77 @@ public class ChunkService {
 
         String[] lines = markdown.split("\n");
         StringBuilder current = new StringBuilder();
-        String heading = "";
+        String h1 = "", h2 = "", h3 = "";
+        boolean inFence = false;
+        boolean hasBody = false;
 
         for (String line : lines) {
-            if (line.startsWith("## ")) {
-                if (!current.toString().isBlank()) {
-                    chunks.addAll(splitOverflow(current.toString().trim(), heading.trim()));
+            String trimmed = line.trim();
+
+            // 代码块围栏切换（``` 开头）
+            if (trimmed.startsWith("```")) {
+                inFence = !inFence;
+                current.append(line).append("\n");
+                hasBody = true;
+                continue;
+            }
+
+            if (!inFence) {
+                Matcher m = HEADING.matcher(trimmed);
+                if (m.matches()) {
+                    // 上一标题块有正文才落盘；纯标题行不单独成片，只作为标题路径
+                    if (hasBody && !current.toString().isBlank()) {
+                        chunks.addAll(splitOverflow(current.toString().trim(), path(h1, h2, h3)));
+                    }
+                    current = new StringBuilder();
+                    hasBody = false;
+
+                    int level = m.group(1).length();
+                    String title = m.group(2).trim();
+                    if (level == 1) {
+                        h1 = title; h2 = ""; h3 = "";
+                    } else if (level == 2) {
+                        h2 = title; h3 = "";
+                    } else {
+                        h3 = title;
+                    }
+                    current.append(line).append("\n");
+                    continue;
                 }
-                current = new StringBuilder();
-                heading = line.substring(3).trim();
-                current.append(line).append("\n");
-            } else {
-                current.append(line).append("\n");
+            }
+            current.append(line).append("\n");
+            if (!trimmed.isEmpty()) {
+                hasBody = true;
             }
         }
-        if (!current.toString().isBlank()) {
-            chunks.addAll(splitOverflow(current.toString().trim(), heading.trim()));
+
+        if (hasBody && !current.toString().isBlank()) {
+            chunks.addAll(splitOverflow(current.toString().trim(), path(h1, h2, h3)));
         }
 
-        // 没有 ## 标题时，整篇作为一个标题块（同样走超长二次切分兜底）
+        // 完全没有标题时，整篇作为一个标题块（同样走超长二次切分兜底）
         if (chunks.isEmpty() && !markdown.isBlank()) {
             chunks.addAll(splitOverflow(markdown.trim(), ""));
         }
         return chunks;
     }
 
-    /**
-     * 超长二次切分：不超过阈值直接成片；
-     * 超过阈值按句子贪心打包，窗口间保留 overlap 字符重叠，heading 继承。
-     */
+    /** 拼接非空标题层级为完整路径，如 "一级 > 二级 > 三级" */
+    private String path(String h1, String h2, String h3) {
+        List<String> parts = new ArrayList<>();
+        if (!h1.isBlank()) {
+            parts.add(h1);
+        }
+        if (!h2.isBlank()) {
+            parts.add(h2);
+        }
+        if (!h3.isBlank()) {
+            parts.add(h3);
+        }
+        return String.join(" > ", parts);
+    }
+
+    /** 超长二次切分：不超过阈值直接成片；超过按句子贪心打包 + overlap，heading 继承 */
     private List<Chunk> splitOverflow(String text, String heading) {
         int max = props.getChunkMaxChars();
         int overlap = props.getChunkOverlapChars();
@@ -73,7 +116,6 @@ public class ChunkService {
         StringBuilder window = new StringBuilder();
 
         for (String sentence : sentences) {
-            // 单句超长（无句末标点的长文本）：按字符硬切兜底，相邻片保留 overlap
             if (sentence.length() > max) {
                 if (!window.isEmpty()) {
                     result.add(new Chunk(window.toString().trim(), heading));
@@ -85,7 +127,6 @@ public class ChunkService {
                 continue;
             }
 
-            // 新窗口开头 = 上一片末尾 overlap 字符（重叠上下文；放不下则放弃前缀）
             if (window.isEmpty() && !result.isEmpty()) {
                 String last = result.get(result.size() - 1).text();
                 int from = Math.max(0, last.length() - overlap);
@@ -112,7 +153,6 @@ public class ChunkService {
         return result;
     }
 
-    /** 按句末标点/换行切成句子（分隔符保留在句尾） */
     private List<String> splitSentences(String text) {
         List<String> sentences = new ArrayList<>();
         Matcher m = SENTENCE_END.matcher(text);
@@ -127,7 +167,6 @@ public class ChunkService {
         return sentences;
     }
 
-    /** 超长单句兜底：按字符硬切，相邻片段从上一片末尾 overlap 处开始 */
     private List<String> hardSplit(String text, int max, int overlap) {
         List<String> pieces = new ArrayList<>();
         int from = 0;

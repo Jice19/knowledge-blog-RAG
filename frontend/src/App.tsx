@@ -12,6 +12,7 @@ import ArticleListPage from './pages/admin/ArticleListPage'
 import ArticleEditPage from './pages/admin/ArticleEditPage'
 import CategoryManagePage from './pages/admin/CategoryManagePage'
 import TagManagePage from './pages/admin/TagManagePage'
+import NotesImportPage from './pages/admin/NotesImportPage'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="articles/:id/edit" element={<ArticleEditPage />} />
         <Route path="categories" element={<CategoryManagePage />} />
         <Route path="tags" element={<TagManagePage />} />
+        <Route path="notes" element={<NotesImportPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

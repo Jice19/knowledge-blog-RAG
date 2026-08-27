@@ -30,7 +30,7 @@ ADMIN_PASS = "admin123"
 ARTICLES_DIR = "content/articles"
 OUT_MAP = "content/imported_articles.json"
 
-# 分类名 → slug（脚本会查重，存在则复用）
+# 分类名 → slug（脚本会查重，存在则复用；缺失则按此表或自动生成 slug 创建）
 CATEGORY_SLUGS = {
     "Java": "java",
     "Redis": "redis",
@@ -39,6 +39,12 @@ CATEGORY_SLUGS = {
     "MySQL": "mysql",
     "网络": "network",
     "RAG": "rag",
+    "前端": "frontend",
+    "后端": "backend",
+    "Agent": "agent",
+    "面试题": "interview",
+    "手写题": "handwritten",
+    "个人笔记": "notes",
 }
 
 
@@ -78,11 +84,21 @@ def main():
     token = login["data"]["token"]
     print(f"登录成功：{login['data']['username']}")
 
-    # 2. 分类：查重 + 建缺失
+    # 2. 解析全部文章，收集用到的分类
+    files = sorted(glob.glob(os.path.join(ARTICLES_DIR, "*.md")))
+    parsed = []
+    needed = set()
+    for path in files:
+        title, summary, category, content = parse_frontmatter(path)
+        parsed.append((title, summary, category, content))
+        needed.add(category)
+
+    # 3. 分类：查重 + 动态建缺失
     cats = http("GET", f"{BACKEND}/api/categories")["data"]
     name2id = {c["name"]: c["id"] for c in cats}
-    for name, slug in CATEGORY_SLUGS.items():
+    for name in needed:
         if name not in name2id:
+            slug = CATEGORY_SLUGS.get(name) or "cat-" + str(abs(hash(name)) % 100000)
             http("POST", f"{BACKEND}/api/admin/categories",
                  {"name": name, "slug": slug}, token)
             name2id[name] = None  # 稍后重新拉取 id
@@ -91,11 +107,9 @@ def main():
         name2id = {c["name"]: c["id"] for c in cats}
     print(f"分类就绪：{list(name2id)}")
 
-    # 3. 逐篇发布
-    files = sorted(glob.glob(os.path.join(ARTICLES_DIR, "*.md")))
+    # 4. 逐篇发布
     imported = []
-    for path in files:
-        title, summary, category, content = parse_frontmatter(path)
+    for title, summary, category, content in parsed:
         cid = name2id.get(category)
         if cid is None:
             print(f"跳过 {title}：未知分类 {category}")

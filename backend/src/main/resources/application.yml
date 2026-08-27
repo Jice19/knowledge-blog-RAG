@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: ai-knowledge-blog
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 30MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3307/ai_knowledge_blog?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
@@ -53,5 +57,5 @@ rag:
   chat-model: qwen3:0.6b
   collection: blog_chunks
   vector-size: 1024
-  chunk-max-chars: 1000
+  chunk-max-chars: 600
   chunk-overlap-chars: 100

@@ -36,6 +36,11 @@ public class ChatService {
             "你是对话改写助手。请把用户当前问题改写成一条不依赖上下文的独立查询，"
             + "保留关键信息与实体，只输出改写结果，不要任何解释。";
 
+    private static final String SYSTEM_QUERY_CLEAN =
+            "你是检索查询优化助手。把用户问题改写成一条适合向量检索的精简查询："
+            + "只保留核心关键词和实体（技术名词、专有名词等），去掉'我想问、关于…的笔记、帮我看看'这类口语噪声。"
+            + "只输出改写后的查询，不要任何解释。";
+
     /**
      * 多轮 Query 改写：结合历史对话，把当前问题改写成独立查询（用于提升检索召回）。
      * 无历史时原样返回。
@@ -51,6 +56,16 @@ public class ChatService {
         }
         sb.append("当前问题：").append(question);
         return chat(SYSTEM_REWRITE, sb.toString()).trim();
+    }
+
+    /** 单轮 Query 优化：把口语化问题提炼成精简检索查询，异常时回退原文 */
+    public String rewriteForSearch(String question) {
+        try {
+            String out = chat(SYSTEM_QUERY_CLEAN, question).trim();
+            return out.isEmpty() ? question : out;
+        } catch (Exception e) {
+            return question;
+        }
     }
 
     /** 单轮对话（非流式）：system 定角色，user 给上下文+问题，返回助手回答 */

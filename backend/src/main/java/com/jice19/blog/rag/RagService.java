@@ -1,6 +1,7 @@
 package com.jice19.blog.rag;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jice19.blog.config.RagProperties;
 import com.jice19.blog.entity.Article;
@@ -43,33 +44,59 @@ public class RagService {
             }
         }
         if (!points.isEmpty()) {
-            vectorStoreService.upsertPoints(props.getCollection(), points);
+            try {
+                vectorStoreService.upsertPoints(props.getCollection(), points);
+            } catch (Exception e) {
+                articles.forEach(a -> updateVectorStatus(a.getId(), 3));
+                throw e;
+            }
         }
+        articles.forEach(a -> updateVectorStatus(a.getId(), 2));
         return points.size();
     }
 
-    /** 单篇入库（幂等）：删该文章旧 chunk → 切片 → 向量化 → 入库 */
+    /** 单篇入库（幂等）：删旧 chunk → 切片 → 向量化 → 入库；过程中更新向量化状态 */
     public void ingestArticle(Long id) {
         Article a = articleMapper.selectById(id);
         if (a == null || a.getStatus() != 1) {
             return;
         }
-        vectorStoreService.ensureCollection(props.getCollection());
-        vectorStoreService.deleteByArticleId(props.getCollection(), id);
+        updateVectorStatus(id, 1);
+        try {
+            vectorStoreService.ensureCollection(props.getCollection());
+            vectorStoreService.deleteByArticleId(props.getCollection(), id);
 
-        List<Map<String, Object>> points = new ArrayList<>();
-        List<Chunk> chunks = chunkService.chunk(a.getContent());
-        for (int i = 0; i < chunks.size(); i++) {
-            points.add(buildPoint(id * 1000L + i, chunks.get(i), a));
-        }
-        if (!points.isEmpty()) {
-            vectorStoreService.upsertPoints(props.getCollection(), points);
+            List<Map<String, Object>> points = new ArrayList<>();
+            List<Chunk> chunks = chunkService.chunk(a.getContent());
+            for (int i = 0; i < chunks.size(); i++) {
+                points.add(buildPoint(id * 1000L + i, chunks.get(i), a));
+            }
+            if (!points.isEmpty()) {
+                // 入库前再查一次：文章可能在入库期间被删除/下线，则放弃写入
+                Article fresh = articleMapper.selectById(id);
+                if (fresh == null || fresh.getStatus() != 1) {
+                    updateVectorStatus(id, 0);
+                    return;
+                }
+                vectorStoreService.upsertPoints(props.getCollection(), points);
+            }
+            updateVectorStatus(id, 2);
+        } catch (Exception e) {
+            updateVectorStatus(id, 3);
+            throw e;
         }
     }
 
-    /** 删除某篇文章的全部向量 */
+    /** 删除某篇文章的全部向量，并标记待入库 */
     public void removeArticle(Long id) {
         vectorStoreService.deleteByArticleId(props.getCollection(), id);
+        updateVectorStatus(id, 0);
+    }
+
+    private void updateVectorStatus(Long id, int status) {
+        articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, id)
+                .set(Article::getVectorStatus, status));
     }
 
     /** 检索：双路混合（BM25 关键词 + 向量语义，RRF 融合）；问题无有效分词时退化纯向量检索 */
@@ -85,8 +112,10 @@ public class RagService {
 
     /** 构建一个 point：稠密向量 + BM25 稀疏向量 + payload（标题/章节/原文） */
     private Map<String, Object> buildPoint(long id, Chunk c, Article a) {
-        float[] vec = embeddingService.embed(c.text());
-        SparseVectorService.SparseVector sp = sparseVectorService.encode(c.text());
+        // 标题 + 正文一起向量化/分词，保证标题关键词（如 "JUC"）可被检索到
+        String searchText = a.getTitle() + "。 " + c.text();
+        float[] vec = embeddingService.embed(searchText);
+        SparseVectorService.SparseVector sp = sparseVectorService.encode(searchText);
         Map<String, Object> vector = Map.of(
                 VectorStoreService.DENSE, (Object) vec,
                 VectorStoreService.SPARSE, Map.of("indices", sp.indices(), "values", sp.values()));
@@ -103,8 +132,10 @@ public class RagService {
      * 供「非流式 ask」与「流式 askStream」共用。
      */
     public AskContext buildContext(String question, int topK, List<Map<String, String>> history) {
-        // 多轮改写：结合历史把问题改写成独立查询，提升检索召回；无历史则原样
-        String query = chatService.rewriteQuery(question, history);
+        // Query 优化：单轮提炼关键词、多轮结合历史改写，提升检索召回
+        String query = (history == null || history.isEmpty())
+                ? chatService.rewriteForSearch(question)
+                : chatService.rewriteQuery(question, history);
         List<JsonNode> hits = search(query, topK);
 
         StringBuilder context = new StringBuilder();
